@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"encoding/base64"
@@ -10,10 +11,8 @@ import (
 	"database/sql"
 	_ "github.com/tursodatabase/go-libsql"
 	_ "embed"
+	"default-gen/schema"
 )
-
-//go:embed schema.sql
-var ddl string
 
 const configDirName = ".go-default-gen"
 
@@ -44,6 +43,8 @@ func initializeDB(configDir string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	ddl := schema.GetSchema()
 
 	_, err = db.Exec(ddl)
 
@@ -98,7 +99,9 @@ func main() {
 
 	if len(os.Args) < 2 {
 		flag.Usage()
+		fmt.Println()
 		addCmd.Usage()
+		fmt.Println()
 		getCmd.Usage()
 		return
 	}
@@ -213,7 +216,7 @@ func runGetCmd(db *sql.DB, name string) error {
 		return err
 	}
 
-	log.Println(string(data))
+	fmt.Fprintln(os.Stdout, string(data))
 
 	return nil
 }
