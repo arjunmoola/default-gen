@@ -109,6 +109,7 @@ func (a *App) Init() error {
 	a.registerHandler("add-config", addConfig(a))
 	a.registerHandler("get-config", getConfigCmd(a))
 	a.registerHandler("list", listConfigCmd(a))
+	a.registerHandler("remove-config", removeConfigCmd(a))
 
 	return nil
 }
@@ -228,6 +229,7 @@ func addConfig(a *App) commandHandler {
 			Program: a.programName,
 			FileName: a.inputFile,
 			Content: content,
+			Path: configPath,
 		}
 
 		if err := queries.InsertConfigDefaults(context.Background(), insertParams); err != nil {
@@ -325,6 +327,38 @@ func listConfigCmd(a *App) commandHandler {
 		for _, row := range rows {
 			fmt.Fprintln(os.Stdout, row.Name)
 		}
+
+		return nil
+	}
+}
+
+func removeConfigCmd(a *App) commandHandler {
+	return func(printUsage bool, args ...string) error {
+		removeCmd := flag.NewFlagSet("remove-config", flag.ExitOnError)
+		removeCmd.StringVar(&a.configName, "n", "", "the name of the config to remove")
+
+		if err := removeCmd.Parse(args); err != nil {
+			return err
+		}
+
+		if printUsage {
+			removeCmd.Usage()
+			return nil
+		}
+
+		if a.configName == "" {
+			fmt.Println("Missing name")
+			removeCmd.Usage()
+			return nil
+		}
+
+		queries := database.New(a.db)
+
+		if err := queries.DeleteConfigByName(context.Background(), a.configName); err != nil {
+			return err
+		}
+
+		fmt.Printf("%s successfully removed\n", a.configName)
 
 		return nil
 	}

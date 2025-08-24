@@ -9,13 +9,23 @@ import (
 	"context"
 )
 
+const deleteConfigByName = `-- name: DeleteConfigByName :exec
+DELETE FROM config_defaults WHERE name = ?
+`
+
+func (q *Queries) DeleteConfigByName(ctx context.Context, name string) error {
+	_, err := q.db.ExecContext(ctx, deleteConfigByName, name)
+	return err
+}
+
 const getAllConfigs = `-- name: GetAllConfigs :many
-SELECT content, name FROM config_defaults
+SELECT content, name, path FROM config_defaults
 `
 
 type GetAllConfigsRow struct {
 	Content string
 	Name    string
+	Path    string
 }
 
 func (q *Queries) GetAllConfigs(ctx context.Context) ([]GetAllConfigsRow, error) {
@@ -27,7 +37,7 @@ func (q *Queries) GetAllConfigs(ctx context.Context) ([]GetAllConfigsRow, error)
 	var items []GetAllConfigsRow
 	for rows.Next() {
 		var i GetAllConfigsRow
-		if err := rows.Scan(&i.Content, &i.Name); err != nil {
+		if err := rows.Scan(&i.Content, &i.Name, &i.Path); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -42,32 +52,39 @@ func (q *Queries) GetAllConfigs(ctx context.Context) ([]GetAllConfigsRow, error)
 }
 
 const getConfigDefaultByName = `-- name: GetConfigDefaultByName :one
-SELECT content, name, file_name FROM config_defaults WHERE name = ?
+SELECT content, name, file_name, path FROM config_defaults WHERE name = ?
 `
 
 type GetConfigDefaultByNameRow struct {
 	Content  string
 	Name     string
 	FileName string
+	Path     string
 }
 
 func (q *Queries) GetConfigDefaultByName(ctx context.Context, name string) (GetConfigDefaultByNameRow, error) {
 	row := q.db.QueryRowContext(ctx, getConfigDefaultByName, name)
 	var i GetConfigDefaultByNameRow
-	err := row.Scan(&i.Content, &i.Name, &i.FileName)
+	err := row.Scan(
+		&i.Content,
+		&i.Name,
+		&i.FileName,
+		&i.Path,
+	)
 	return i, err
 }
 
 const insertConfigDefaults = `-- name: InsertConfigDefaults :exec
 INSERT INTO config_defaults
-    (name, file_name, program, content)
+    (name, file_name, path, program, content)
 VALUES
-    (?, ?, ?, ?)
+    (?, ?, ?, ?, ?)
 `
 
 type InsertConfigDefaultsParams struct {
 	Name     string
 	FileName string
+	Path     string
 	Program  string
 	Content  string
 }
@@ -76,6 +93,7 @@ func (q *Queries) InsertConfigDefaults(ctx context.Context, arg InsertConfigDefa
 	_, err := q.db.ExecContext(ctx, insertConfigDefaults,
 		arg.Name,
 		arg.FileName,
+		arg.Path,
 		arg.Program,
 		arg.Content,
 	)

@@ -8,6 +8,7 @@ type ConfigDefault struct {
 	ID       int64
 	Name     string
 	FileName string
+	Path     string
 	Program  string
 	Content  string
 }
