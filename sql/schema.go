@@ -1,4 +1,4 @@
-package schema
+package sql
 
 import (
 	_ "embed"
@@ -7,6 +7,6 @@ import (
 //go:embed schema.sql
 var schema string
 
-func GetSchema() string {
+func Get() string {
 	return schema
 }
