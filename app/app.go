@@ -30,6 +30,7 @@ type App struct {
 	inputFile string
 	programName string
 	configName string
+	outDir string
 }
 
 func createConfigDirIfNotExist(dir string) error {
@@ -241,9 +242,11 @@ func getConfigCmd(a *App) commandHandler {
 	return func(printUsage bool, args ...string) error {
 		getCmd := flag.NewFlagSet("get-config", flag.ExitOnError)
 		getCmd.StringVar(&a.configName, "n", "", "the name of the config to retrieve")
+		getCmd.StringVar(&a.outDir, "d", "", "directory to write the retrieved config")
 
 		if printUsage {
 			getCmd.Usage()
+			return nil
 		}
 
 		if err := getCmd.Parse(args); err != nil {
@@ -268,10 +271,34 @@ func getConfigCmd(a *App) commandHandler {
 			return err
 		}
 
+		if a.outDir != "" {
+			return writeConfigToFile(a.outDir, row.FileName, data)
+		}
+
 		fmt.Fprintln(os.Stdout, string(data))
 
 		return nil
 	}
+}
+
+func writeConfigToFile(dir string, fileName string, content []byte) error {
+	dir, err  := filepath.Abs(dir)
+
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Create(filepath.Join(dir, fileName))
+
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	file.Write(content)
+
+	return nil
 }
 
 func listConfigCmd(a *App) commandHandler {

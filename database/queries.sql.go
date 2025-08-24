@@ -42,18 +42,19 @@ func (q *Queries) GetAllConfigs(ctx context.Context) ([]GetAllConfigsRow, error)
 }
 
 const getConfigDefaultByName = `-- name: GetConfigDefaultByName :one
-SELECT content, name FROM config_defaults WHERE name = ?
+SELECT content, name, file_name FROM config_defaults WHERE name = ?
 `
 
 type GetConfigDefaultByNameRow struct {
-	Content string
-	Name    string
+	Content  string
+	Name     string
+	FileName string
 }
 
 func (q *Queries) GetConfigDefaultByName(ctx context.Context, name string) (GetConfigDefaultByNameRow, error) {
 	row := q.db.QueryRowContext(ctx, getConfigDefaultByName, name)
 	var i GetConfigDefaultByNameRow
-	err := row.Scan(&i.Content, &i.Name)
+	err := row.Scan(&i.Content, &i.Name, &i.FileName)
 	return i, err
 }
 

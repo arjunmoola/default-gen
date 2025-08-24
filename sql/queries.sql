@@ -5,7 +5,7 @@ VALUES
     (?, ?, ?, ?);
 
 -- name: GetConfigDefaultByName :one
-SELECT content, name FROM config_defaults WHERE name = ?;
+SELECT content, name, file_name FROM config_defaults WHERE name = ?;
 
 -- name: GetAllConfigs :many
 SELECT content, name FROM config_defaults;
