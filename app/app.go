@@ -26,6 +26,7 @@ type App struct {
 	dbUrl string
 	db *sql.DB
 	cmdHandlers map[string] commandHandler
+	registeredPrograms map[string]string
 
 	inputFile string
 	programName string
@@ -60,12 +61,15 @@ func initializeDb(dburl string) (*sql.DB, error) {
 		return nil, err
 	}
 
-	ddl := schema.Get()
+	schemas := schema.GetSchemas()
 
-	_, err = db.Exec(ddl)
+	for _, s := range schemas {
 
-	if err != nil {
-		return nil, err
+		_, err = db.Exec(s)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return db, nil
@@ -78,7 +82,28 @@ func createDbUrl(configDir string, dbName string) string {
 func New() *App {
 	return &App{
 		cmdHandlers: make(map[string]commandHandler),
+		registeredPrograms: make(map[string]string),
 	}
+}
+
+func (a *App) initRegisteredPrograms() error {
+	queries := database.New(a.db)
+
+	if err := queries.InsertDefaultRegisteredPrograms(context.Background()); err != nil {
+		return err
+	}
+
+	rows, err := queries.GetRegisteredPrograms(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	for _, row := range rows {
+		a.registeredPrograms[row.FileName] = row.Program
+	}
+
+	return nil
 }
 
 func (a *App) Init() error {
@@ -106,16 +131,45 @@ func (a *App) Init() error {
 	a.dbUrl = dbUrl
 	a.db = db
 
+	if err := a.initRegisteredPrograms(); err != nil {
+		return err
+	}
+
 	a.registerHandler("add-config", addConfig(a))
 	a.registerHandler("get-config", getConfigCmd(a))
 	a.registerHandler("list", listConfigCmd(a))
 	a.registerHandler("remove-config", removeConfigCmd(a))
+	a.registerHandler("register-config", registerProgramCmd(a))
 
 	return nil
 }
 
 func (a *App) registerHandler(name string, h commandHandler) {
 	a.cmdHandlers[name] = h
+}
+
+func (a *App) lookForRegisteredFile() error {
+	dir, err := os.Getwd()
+
+	if err != nil {
+		return err
+	}
+
+	dirEntries, err := os.ReadDir(dir)
+
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range dirEntries {
+		name := entry.Name()
+		if program, ok := a.registeredPrograms[name]; ok {
+			a.inputFile = name
+			a.programName = program
+		}
+	}
+
+	return nil
 }
 
 func sortedMap(m map[string]commandHandler) iter.Seq[commandHandler] {
@@ -189,12 +243,11 @@ func addConfig(a *App) commandHandler {
 			return nil
 		}
 
-		if len(args) < 3 {
-			addCmd.Usage()
-			return nil
+		if err := addCmd.Parse(args); err != nil {
+			return err
 		}
 
-		if err := addCmd.Parse(args); err != nil {
+		if err := a.lookForRegisteredFile(); err != nil {
 			return err
 		}
 
@@ -359,6 +412,46 @@ func removeConfigCmd(a *App) commandHandler {
 		}
 
 		fmt.Printf("%s successfully removed\n", a.configName)
+
+		return nil
+	}
+}
+
+func registerProgramCmd(a *App) commandHandler {
+	return func(printUsage bool, args ...string) error {
+		registerCmd := flag.NewFlagSet("register-config", flag.ExitOnError)
+		registerCmd.StringVar(&a.programName, "p", "", "the name of the program you want to register as a default config to look for")
+		registerCmd.StringVar(&a.inputFile, "f", "", "the name of the file to search for in a directory whenever a add-config command is called")
+
+		if printUsage {
+			registerCmd.Usage()
+			return nil
+		}
+
+		if err := registerCmd.Parse(args); err != nil {
+			return nil
+		}
+
+		if a.programName == "" {
+			return ErrMissingProgramName
+		}
+
+		if a.inputFile == "" {
+			return ErrMissingInputFile
+		}
+
+		params := database.RegisterNewConfigFileParams{
+			Program: a.programName,
+			FileName: a.inputFile,
+		}
+
+		queries := database.New(a.db)
+
+		if err := queries.RegisterNewConfigFile(context.Background(), params); err != nil {
+			return err
+		}
+
+		fmt.Printf("program %s and input file %s was successfully registered\n", a.programName, a.inputFile)
 
 		return nil
 	}

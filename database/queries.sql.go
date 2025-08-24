@@ -74,6 +74,38 @@ func (q *Queries) GetConfigDefaultByName(ctx context.Context, name string) (GetC
 	return i, err
 }
 
+const getRegisteredPrograms = `-- name: GetRegisteredPrograms :many
+SELECT program, file_name FROM registered_programs
+`
+
+type GetRegisteredProgramsRow struct {
+	Program  string
+	FileName string
+}
+
+func (q *Queries) GetRegisteredPrograms(ctx context.Context) ([]GetRegisteredProgramsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRegisteredPrograms)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRegisteredProgramsRow
+	for rows.Next() {
+		var i GetRegisteredProgramsRow
+		if err := rows.Scan(&i.Program, &i.FileName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertConfigDefaults = `-- name: InsertConfigDefaults :exec
 INSERT INTO config_defaults
     (name, file_name, path, program, content)
@@ -97,5 +129,34 @@ func (q *Queries) InsertConfigDefaults(ctx context.Context, arg InsertConfigDefa
 		arg.Program,
 		arg.Content,
 	)
+	return err
+}
+
+const insertDefaultRegisteredPrograms = `-- name: InsertDefaultRegisteredPrograms :exec
+INSERT OR IGNORE INTO registered_programs
+    (program, file_name)
+VALUES
+    ('sqlc', 'sqlc.yaml')
+`
+
+func (q *Queries) InsertDefaultRegisteredPrograms(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, insertDefaultRegisteredPrograms)
+	return err
+}
+
+const registerNewConfigFile = `-- name: RegisterNewConfigFile :exec
+INSERT INTO registered_programs
+    (program, file_name)
+VALUES
+    (?, ?)
+`
+
+type RegisterNewConfigFileParams struct {
+	Program  string
+	FileName string
+}
+
+func (q *Queries) RegisterNewConfigFile(ctx context.Context, arg RegisterNewConfigFileParams) error {
+	_, err := q.db.ExecContext(ctx, registerNewConfigFile, arg.Program, arg.FileName)
 	return err
 }

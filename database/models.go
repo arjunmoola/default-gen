@@ -12,3 +12,9 @@ type ConfigDefault struct {
 	Program  string
 	Content  string
 }
+
+type RegisteredProgram struct {
+	ID       int64
+	Program  string
+	FileName string
+}
